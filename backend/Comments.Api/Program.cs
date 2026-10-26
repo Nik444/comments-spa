@@ -1,3 +1,6 @@
+using Comments.Api.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -5,6 +8,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+var connectionString = builder.Configuration.GetConnectionString("CommentsDb")
+    ?? throw new InvalidOperationException("Не задана строка подключения ConnectionStrings:CommentsDb.");
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure()));
 
 var app = builder.Build();
 
