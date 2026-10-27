@@ -1,6 +1,5 @@
 namespace Comments.Api.Domain;
 
-/// <summary>Предельные размеры полей комментария: единый источник для БД и валидации.</summary>
 public static class CommentLimits
 {
     public const int UserNameMax = 50;

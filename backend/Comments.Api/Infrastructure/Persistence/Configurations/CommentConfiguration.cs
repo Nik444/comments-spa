@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Comments.Api.Infrastructure.Persistence.Configurations;
 
-/// <summary>Как комментарий хранится в базе: размеры полей, связи, ограничения и индексы.</summary>
 public class CommentConfiguration : IEntityTypeConfiguration<CommentEntity>
 {
     public void Configure(EntityTypeBuilder<CommentEntity> builder)
@@ -41,9 +40,8 @@ public class CommentConfiguration : IEntityTypeConfiguration<CommentEntity>
             attachment.Property(a => a.SizeBytes).HasColumnName("AttachmentSize");
         });
 
-        // Индексы под сортировку списка корней. Фильтр оставляет в индексе только корни,
-        // поэтому ответы его не раздувают. Id вторым ключом делает порядок однозначным.
-        // Один индекс обслуживает обе стороны сортировки (прямой и обратный просмотр).
+        // Индексы под сортировку корней: фильтр оставляет в индексе только корни, Id вторым ключом
+        // делает порядок однозначным, а один индекс работает в обе стороны сортировки.
         builder.HasIndex(c => new { c.CreatedAt, c.Id })
             .IsDescending(true, true)
             .HasFilter("[ParentId] IS NULL")

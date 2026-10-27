@@ -1,9 +1,5 @@
 namespace Comments.Api.Domain;
 
-/// <summary>
-/// Файл, приложенный к комментарию. Содержимое лежит в хранилище (IFileStorage),
-/// здесь только метаданные. Хранится в той же таблице, что и комментарий.
-/// </summary>
 public class AttachmentEntity
 {
     public required AttachmentKind Kind { get; set; }

@@ -1,6 +1,6 @@
 namespace Comments.Api.Domain;
 
-/// <summary>Вид вложения. Значения хранятся в БД числом, менять их нельзя.</summary>
+// Значения хранятся в БД числом, менять их нельзя.
 public enum AttachmentKind
 {
     Image = 1,
