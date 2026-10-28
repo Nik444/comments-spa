@@ -9,7 +9,12 @@ using Microsoft.Extensions.Options;
 
 namespace Comments.Api.Application.Services;
 
-public class CommentService(ICommentRepository repository, IOptions<CommentsOptions> options, TimeProvider timeProvider)
+public class CommentService(
+    ICommentRepository repository,
+    ICommentByIdCache commentCache,
+    IPageCache pageCache,
+    IOptions<CommentsOptions> options,
+    TimeProvider timeProvider)
 {
     public async Task<CommentResponse> CreateAsync(CreateCommentRequest request, CancellationToken cancellationToken)
     {
@@ -44,14 +49,51 @@ public class CommentService(ICommentRepository repository, IOptions<CommentsOpti
         repository.Add(comment);
         await repository.SaveChangesAsync(cancellationToken);
 
-        return comment.ToResponse();
+        // В кэш сразу после коммита: клиенты, получившие сигнал о новом комментарии, найдут его там.
+        var response = comment.ToResponse();
+        await commentCache.SetAsync(response, cancellationToken);
+
+        return response;
     }
 
     public async Task<PagedResponse<RootCommentResponse>> GetPageAsync(GetCommentsRequest request, CancellationToken cancellationToken)
     {
+        var totalItems = await pageCache.GetOrCreateAsync("roots:count", ct => new ValueTask<long>(repository.CountRootsAsync(ct)), cancellationToken);
+
+        if (!pageCache.IsCacheablePage(request.Page, TotalPages(totalItems)))
+            return await LoadPageAsync(request, totalItems, cancellationToken);
+
+        var key = $"page:{request.Page}:{request.SortBy}:{request.SortDir}";
+        return await pageCache.GetOrCreateAsync(key, ct => new ValueTask<PagedResponse<RootCommentResponse>>(LoadPageAsync(request, totalItems, ct)), cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<CommentResponse>> GetByIdsAsync(IReadOnlyCollection<long> ids, CancellationToken cancellationToken)
+    {
+        var distinctIds = ids.Distinct().ToList();
+
+        var limit = options.Value.MaxIdsPerRequest;
+        if (distinctIds.Count > limit)
+            throw new TooManyIdsException(limit);
+
+        if (distinctIds.Count == 0)
+            return [];
+
+        var comments = await commentCache.GetManyAsync(distinctIds, LoadByIdsAsync, cancellationToken);
+        return comments.OrderBy(c => c.Id).ToList();
+    }
+
+    public async Task<CommentResponse?> GetByIdAsync(long id, CancellationToken cancellationToken)
+    {
+        var comments = await commentCache.GetManyAsync([id], LoadByIdsAsync, cancellationToken);
+        return comments.Count == 0 ? null : comments[0];
+    }
+
+    private int TotalPages(long totalItems) => (int)((totalItems + options.Value.PageSize - 1) / options.Value.PageSize);
+
+    private async Task<PagedResponse<RootCommentResponse>> LoadPageAsync(GetCommentsRequest request, long totalItems, CancellationToken cancellationToken)
+    {
         var pageSize = options.Value.PageSize;
-        var totalItems = await repository.CountRootsAsync(cancellationToken);
-        var totalPages = (int)((totalItems + pageSize - 1) / pageSize);
+        var totalPages = TotalPages(totalItems);
 
         var roots = await repository.GetRootsPageAsync(
             request.SortBy,
@@ -74,25 +116,9 @@ public class CommentService(ICommentRepository repository, IOptions<CommentsOpti
         return new PagedResponse<RootCommentResponse>(items, request.Page, pageSize, totalItems, totalPages);
     }
 
-    // Порядок по возрастанию Id, несуществующие Id пропускаются.
-    public async Task<IReadOnlyList<CommentResponse>> GetByIdsAsync(IReadOnlyCollection<long> ids, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<CommentResponse>> LoadByIdsAsync(IReadOnlyCollection<long> ids, CancellationToken cancellationToken)
     {
-        var distinctIds = ids.Distinct().ToList();
-
-        var limit = options.Value.MaxIdsPerRequest;
-        if (distinctIds.Count > limit)
-            throw new TooManyIdsException(limit);
-
-        if (distinctIds.Count == 0)
-            return [];
-
-        var comments = await repository.GetByIdsAsync(distinctIds, cancellationToken);
-        return comments.OrderBy(c => c.Id).Select(c => c.ToResponse()).ToList();
-    }
-
-    public async Task<CommentResponse?> GetByIdAsync(long id, CancellationToken cancellationToken)
-    {
-        var comments = await repository.GetByIdsAsync([id], cancellationToken);
-        return comments.Count == 0 ? null : comments[0].ToResponse();
+        var comments = await repository.GetByIdsAsync(ids, cancellationToken);
+        return comments.Select(c => c.ToResponse()).ToList();
     }
 }

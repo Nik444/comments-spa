@@ -38,7 +38,13 @@ public class CommentRepository(AppDbContext db) : ICommentRepository
             _ => throw new ArgumentOutOfRangeException(nameof(sortBy), sortBy, "Неизвестная сортировка.")
         };
 
-        return await ordered.Skip(skip).Take(take).ToListAsync(cancellationToken);
+        // Сначала только Id страницы: такой запрос читает один индекс и не поднимает строки пропущенных страниц.
+        var ids = await ordered.Skip(skip).Take(take).Select(c => c.Id).ToListAsync(cancellationToken);
+        if (ids.Count == 0)
+            return [];
+
+        var rows = await db.Comments.AsNoTracking().Where(c => ids.Contains(c.Id)).ToDictionaryAsync(c => c.Id, cancellationToken);
+        return ids.Where(rows.ContainsKey).Select(id => rows[id]).ToList();
     }
 
     public Task<long> CountRootsAsync(CancellationToken cancellationToken) =>

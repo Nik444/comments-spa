@@ -1,6 +1,7 @@
 using Comments.Api.Application.Abstractions;
 using Comments.Api.Application.Options;
 using Comments.Api.Application.Services;
+using Comments.Api.Infrastructure.Caching;
 using Comments.Api.Infrastructure.Http;
 using Comments.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,13 @@ builder.Services.AddOptions<CommentsOptions>()
     .BindConfiguration(CommentsOptions.SectionName)
     .ValidateDataAnnotations()
     .ValidateOnStart();
+
+builder.Services.AddOptions<CacheOptions>()
+    .BindConfiguration(CacheOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services.AddCommentsCaching(builder.Configuration);
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
