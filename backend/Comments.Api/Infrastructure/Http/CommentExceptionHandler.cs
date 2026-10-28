@@ -16,6 +16,12 @@ public sealed class CommentExceptionHandler(IProblemDetailsService problemDetail
                 Status = StatusCodes.Status400BadRequest,
                 Title = "Ошибки в данных запроса."
             },
+            InvalidCaptchaException e => new ValidationProblemDetails(
+                new Dictionary<string, string[]> { ["CaptchaAnswer"] = [e.Message] })
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "Ошибки в данных запроса."
+            },
             TooManyIdsException e => new ValidationProblemDetails(
                 new Dictionary<string, string[]> { ["ids"] = [e.Message] })
             {

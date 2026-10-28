@@ -11,5 +11,7 @@ public sealed record CreateCommentRequest(
     [HttpUrl, StringLength(CommentLimits.HomePageMax)] string? HomePage,
     [Required, StringLength(CommentLimits.TextMax), CommentText] string Text,
     [Range(1, long.MaxValue)] long? ParentId,
+    [StringLength(64)] string? CaptchaId,
+    [StringLength(16)] string? CaptchaAnswer,
     // Пока только принимается формой, обработка вложения будет отдельным шагом (сервис получит свой тип вместо IFormFile).
     IFormFile? File = null);

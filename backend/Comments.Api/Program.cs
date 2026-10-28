@@ -2,9 +2,11 @@ using Comments.Api.Application.Abstractions;
 using Comments.Api.Application.Options;
 using Comments.Api.Application.Services;
 using Comments.Api.Infrastructure.Caching;
+using Comments.Api.Infrastructure.Captcha;
 using Comments.Api.Infrastructure.Http;
 using Comments.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,7 +29,13 @@ builder.Services.AddOptions<CacheOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+builder.Services.AddOptions<CaptchaOptions>()
+    .BindConfiguration(CaptchaOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 builder.Services.AddCommentsCaching(builder.Configuration);
+builder.Services.AddCaptcha();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
@@ -37,6 +45,9 @@ builder.Services.AddExceptionHandler<CommentExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 var app = builder.Build();
+
+if (!app.Services.GetRequiredService<IOptions<CaptchaOptions>>().Value.Enabled)
+    app.Logger.LogWarning("Капча выключена (Captcha:Enabled = false). Так можно работать только при отладке и нагрузочных тестах.");
 
 app.UseExceptionHandler();
 

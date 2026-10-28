@@ -13,11 +13,15 @@ public class CommentService(
     ICommentRepository repository,
     ICommentByIdCache commentCache,
     IPageCache pageCache,
+    ICaptchaService captcha,
     IOptions<CommentsOptions> options,
     TimeProvider timeProvider)
 {
     public async Task<CommentResponse> CreateAsync(CreateCommentRequest request, CancellationToken cancellationToken)
     {
+        if (!await captcha.VerifyAsync(request.CaptchaId, request.CaptchaAnswer, cancellationToken))
+            throw new InvalidCaptchaException();
+
         long? rootId = null;
 
         if (request.ParentId is { } parentId)
