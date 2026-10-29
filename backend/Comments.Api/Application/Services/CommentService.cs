@@ -5,6 +5,7 @@ using Comments.Api.Application.Options;
 using Comments.Api.Application.Requests;
 using Comments.Api.Application.Responses;
 using Comments.Api.Domain;
+using Comments.Contracts;
 using Microsoft.Extensions.Options;
 
 namespace Comments.Api.Application.Services;
@@ -14,6 +15,7 @@ public class CommentService(
     ICommentByIdCache commentCache,
     IPageCache pageCache,
     ICaptchaService captcha,
+    ICommentEventPublisher events,
     IOptions<CommentsOptions> options,
     TimeProvider timeProvider)
 {
@@ -56,6 +58,8 @@ public class CommentService(
         // В кэш сразу после коммита: клиенты, получившие сигнал о новом комментарии, найдут его там.
         var response = comment.ToResponse();
         await commentCache.SetAsync(response, cancellationToken);
+
+        events.Publish(new CommentCreatedEvent(response.Id, response.ParentId, response.RootId, response.CreatedAt));
 
         return response;
     }

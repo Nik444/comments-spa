@@ -4,6 +4,7 @@ using Comments.Api.Application.Services;
 using Comments.Api.Infrastructure.Caching;
 using Comments.Api.Infrastructure.Captcha;
 using Comments.Api.Infrastructure.Http;
+using Comments.Api.Infrastructure.Messaging;
 using Comments.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -36,6 +37,7 @@ builder.Services.AddOptions<CaptchaOptions>()
 
 builder.Services.AddCommentsCaching(builder.Configuration);
 builder.Services.AddCaptcha();
+builder.Services.AddMessaging(builder.Configuration);
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
