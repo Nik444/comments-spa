@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Проверка сигналов</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; max-width: 720px; }
+    input { padding: 6px; width: 260px; }
+    button { padding: 6px 12px; }
+    #log { margin-top: 12px; padding: 8px; background: #f4f4f4; height: 320px; overflow: auto; font-family: monospace; font-size: 13px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Проверка сигналов</h1>
+  <p>Состояние: <b id="state">нет подключения</b></p>
+  <p>
+    <input id="roots" placeholder="Id корней через запятую, например 1,2,3">
+    <button id="subscribe">Подписаться на ветки</button>
+  </p>
+  <div id="log"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js"></script>
+  <script>
+    const log = (text) => {
+      const box = document.getElementById('log');
+      box.textContent += new Date().toLocaleTimeString() + '  ' + text + '\n';
+      box.scrollTop = box.scrollHeight;
+    };
+    const setState = (text) => { document.getElementById('state').textContent = text; };
+
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl('/hubs/comments', { skipNegotiation: true, transport: signalR.HttpTransportType.WebSockets })
+      .withAutomaticReconnect()
+      .build();
+
+    connection.on('NewRoots', (ids) => log('Новые корневые комментарии: ' + ids.join(', ')));
+    connection.on('NewReplies', (rootId, ids) => log('Новые ответы в ветке ' + rootId + ': ' + ids.join(', ')));
+
+    let subscribed = [];
+    const subscribe = async () => {
+      const ids = document.getElementById('roots').value
+        .split(',').map(s => parseInt(s.trim(), 10)).filter(n => Number.isFinite(n));
+      try {
+        await connection.invoke('SubscribeRoots', ids);
+        subscribed = ids;
+        log('Подписка на ветки: ' + (ids.join(', ') || 'нет'));
+      } catch (e) {
+        log('Ошибка подписки: ' + e.message);
+      }
+    };
+
+    connection.onreconnecting(() => setState('переподключение...'));
+    connection.onreconnected(async () => {
+      setState('подключено');
+      if (subscribed.length) await connection.invoke('SubscribeRoots', subscribed);
+    });
+    connection.onclose(() => setState('нет подключения'));
+
+    document.getElementById('subscribe').addEventListener('click', subscribe);
+
+    connection.start()
+      .then(() => { setState('подключено'); log('Подключено к хабу.'); })
+      .catch(e => log('Не удалось подключиться: ' + e.message));
+  </script>
+</body>
+</html>
