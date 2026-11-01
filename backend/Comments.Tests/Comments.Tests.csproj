@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Comments.Api\Comments.Api.csproj" />
+    <ProjectReference Include="..\Comments.Realtime\Comments.Realtime.csproj" />
   </ItemGroup>
 
 </Project>
