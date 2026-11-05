@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { CommentDto } from '@/api/types'
+import CommentAttachment from '@/components/CommentAttachment.vue'
 import CommentForm from '@/components/CommentForm.vue'
 import CommentMeta from '@/components/CommentMeta.vue'
 import { renderCommentHtml } from '@/utils/sanitize'
@@ -26,6 +27,7 @@ function onCreated(comment: CommentDto) {
       :created-at="node.comment.createdAt"
     />
     <div class="comment-text" v-html="renderCommentHtml(node.comment.text)" />
+    <CommentAttachment v-if="node.comment.attachment" :attachment="node.comment.attachment" />
 
     <button v-if="!replying" type="button" class="btn link" @click="replying = true">Ответить</button>
     <CommentForm v-else :parent-id="node.comment.id" @created="onCreated" @cancel="replying = false" />

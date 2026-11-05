@@ -47,7 +47,13 @@ async function toApiError(response: Response): Promise<ApiError> {
     fieldErrors[key.charAt(0).toLowerCase() + key.slice(1)] = messages
   }
 
-  const message = problem?.detail ?? problem?.title ?? `Ошибка сервера (${response.status}).`
+  // Текст 5xx на английском (заголовок ProblemDetails по умолчанию) пользователю ничего не даёт.
+  const message =
+    response.status === 413
+      ? 'Слишком большой запрос. Выберите файл поменьше.'
+      : response.status >= 500
+        ? 'Ошибка сервера. Комментарий не сохранён, повторите попытку позже.'
+        : (problem?.detail ?? problem?.title ?? `Ошибка запроса (${response.status}).`)
 
   return new ApiError(response.status, message, fieldErrors)
 }

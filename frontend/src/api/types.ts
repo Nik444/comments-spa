@@ -1,5 +1,12 @@
 // Типы повторяют ответы Comments.Api (CommentResponse, RootCommentResponse, PagedResponse, CaptchaResponse).
 
+export interface AttachmentDto {
+  kind: 'image' | 'text'
+  url: string
+  name: string
+  size: number
+}
+
 export interface CommentDto {
   id: number
   parentId: number | null
@@ -9,6 +16,7 @@ export interface CommentDto {
   homePage: string | null
   text: string
   createdAt: string
+  attachment: AttachmentDto | null
 }
 
 export interface RootCommentDto {
@@ -18,6 +26,7 @@ export interface RootCommentDto {
   homePage: string | null
   text: string
   createdAt: string
+  attachment: AttachmentDto | null
   replies: CommentDto[]
 }
 
@@ -45,4 +54,5 @@ export interface NewComment {
   parentId: number | null
   captchaId: string | null
   captchaAnswer: string
+  file: File | null
 }

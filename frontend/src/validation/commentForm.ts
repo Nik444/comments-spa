@@ -10,9 +10,10 @@ export interface FormValues {
   captchaAnswer: string
 }
 
-export type FormField = keyof FormValues
+export type FormField = keyof FormValues | 'file'
 export type FormErrors = Partial<Record<FormField, string>>
 
+const USER_NAME_REGEX = /^[A-Za-z0-9]+$/
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // Те же правила, что на сервере. Сервер проверяет всё повторно, здесь это быстрая подсказка до отправки.
@@ -22,6 +23,7 @@ export function validateForm(values: FormValues, captchaRequired: boolean): Form
   const userName = values.userName.trim()
   if (!userName) errors.userName = 'Введите имя.'
   else if (userName.length > Limits.userNameMax) errors.userName = `Не больше ${Limits.userNameMax} символов.`
+  else if (!USER_NAME_REGEX.test(userName)) errors.userName = 'Имя может содержать только латинские буквы и цифры.'
 
   const email = values.email.trim()
   if (!email) errors.email = 'Введите e-mail.'

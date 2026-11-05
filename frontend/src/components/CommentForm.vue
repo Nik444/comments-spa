@@ -6,8 +6,10 @@ import type { CommentDto } from '@/api/types'
 import CaptchaField from '@/components/CaptchaField.vue'
 import { useCaptcha } from '@/composables/useCaptcha'
 import { validateForm, type FormErrors, type FormField, type FormValues } from '@/validation/commentForm'
+import { checkAttachment, detectKind } from '@/validation/attachment'
 import { Limits } from '@/validation/limits'
 import { setDraft } from '@/utils/draft'
+import { prepareImage } from '@/utils/image'
 import { rememberOwn } from '@/utils/own'
 import { renderCommentHtml } from '@/utils/sanitize'
 
@@ -28,6 +30,11 @@ const formError = ref<string | null>(null)
 const submitting = ref(false)
 const showPreview = ref(false)
 const textarea = ref<HTMLTextAreaElement | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+const file = ref<File | null>(null)
+const fileInfo = ref<string | null>(null)
+const filePreviewUrl = ref<string | null>(null)
+const preparingFile = ref(false)
 const { state: captchaState, captcha, refresh: refreshCaptcha } = useCaptcha()
 
 const preview = computed(() => renderCommentHtml(values.text))
@@ -40,7 +47,56 @@ watch(
   (text) => setDraft(id, isReply.value ? 'reply' : 'root', text.trim().length > 0),
 )
 
-onBeforeUnmount(() => setDraft(id, 'root', false))
+onBeforeUnmount(() => {
+  setDraft(id, 'root', false)
+  clearFile()
+})
+
+function clearFile() {
+  if (filePreviewUrl.value) URL.revokeObjectURL(filePreviewUrl.value)
+
+  file.value = null
+  fileInfo.value = null
+  filePreviewUrl.value = null
+  if (fileInput.value) fileInput.value.value = ''
+}
+
+async function onFileChange(event: Event) {
+  const selected = (event.target as HTMLInputElement).files?.[0]
+
+  clearFile()
+  delete errors.value.file
+  if (!selected) return
+
+  const problem = checkAttachment(selected)
+
+  if (problem) {
+    errors.value = { ...errors.value, file: problem }
+    return
+  }
+
+  if (detectKind(selected) === 'text') {
+    file.value = selected
+    fileInfo.value = `${selected.name}, ${Math.ceil(selected.size / 1024)} КБ`
+    return
+  }
+
+  preparingFile.value = true
+
+  try {
+    const prepared = await prepareImage(selected)
+
+    file.value = prepared.file
+    filePreviewUrl.value = URL.createObjectURL(prepared.file)
+    fileInfo.value = prepared.resized
+      ? `${prepared.file.name}, уменьшено до ${prepared.width}×${prepared.height}`
+      : `${prepared.file.name}, ${prepared.width}×${prepared.height}`
+  } catch (e) {
+    errors.value = { ...errors.value, file: e instanceof Error ? e.message : 'Не удалось обработать файл.' }
+  } finally {
+    preparingFile.value = false
+  }
+}
 
 async function wrapSelection(open: string, close: string) {
   const el = textarea.value
@@ -58,7 +114,7 @@ async function wrapSelection(open: string, close: string) {
 }
 
 function applyServerErrors(error: ApiError) {
-  const fields: FormField[] = ['userName', 'email', 'homePage', 'text', 'captchaAnswer']
+  const fields: FormField[] = ['userName', 'email', 'homePage', 'text', 'captchaAnswer', 'file']
   const mapped: FormErrors = {}
 
   for (const field of fields) {
@@ -75,6 +131,7 @@ async function submit() {
   const homePage = values.homePage.trim() === homePagePrefix ? '' : values.homePage
 
   errors.value = validateForm({ ...values, homePage }, captchaState.value === 'enabled')
+  if (preparingFile.value) errors.value.file = 'Дождитесь обработки файла.'
   if (Object.keys(errors.value).length > 0) return
 
   submitting.value = true
@@ -88,11 +145,13 @@ async function submit() {
       parentId: props.parentId ?? null,
       captchaId: captcha.value?.id ?? null,
       captchaAnswer: values.captchaAnswer,
+      file: file.value,
     })
 
     rememberOwn(comment.id)
     values.text = ''
     showPreview.value = false
+    clearFile()
     emit('created', comment)
   } catch (e) {
     if (e instanceof ApiError) applyServerErrors(e)
@@ -109,7 +168,7 @@ async function submit() {
   <form class="comment-form" novalidate @submit.prevent="submit">
     <div class="form-row">
       <div class="field">
-        <label :for="`${id}-name`">Имя *</label>
+        <label :for="`${id}-name`">Имя * (латиница и цифры)</label>
         <input :id="`${id}-name`" v-model="values.userName" type="text" :maxlength="Limits.userNameMax" :aria-invalid="!!errors.userName" />
         <p v-if="errors.userName" class="error-text">{{ errors.userName }}</p>
       </div>
@@ -139,6 +198,18 @@ async function submit() {
 
       <textarea :id="`${id}-text`" ref="textarea" v-model="values.text" rows="5" :maxlength="Limits.textMax" :aria-invalid="!!errors.text" />
       <p v-if="errors.text" class="error-text">{{ errors.text }}</p>
+    </div>
+
+    <div class="field">
+      <label :for="`${id}-file`">Файл: JPG, GIF, PNG (до 320×240, больше уменьшится сам) или TXT до 100 КБ</label>
+      <input :id="`${id}-file`" ref="fileInput" type="file" accept=".jpg,.jpeg,.png,.gif,.txt,image/jpeg,image/png,image/gif,text/plain" :aria-invalid="!!errors.file" @change="onFileChange" />
+      <p v-if="preparingFile" class="muted">Обработка…</p>
+      <div v-if="file" class="file-row">
+        <img v-if="filePreviewUrl" :src="filePreviewUrl" alt="Предпросмотр вложения" class="file-thumb" />
+        <span class="muted">{{ fileInfo }}</span>
+        <button type="button" class="btn" @click="clearFile">Убрать</button>
+      </div>
+      <p v-if="errors.file" class="error-text">{{ errors.file }}</p>
     </div>
 
     <div v-if="showPreview" class="preview">

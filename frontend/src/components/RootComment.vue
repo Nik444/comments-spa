@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { CommentDto, RootCommentDto } from '@/api/types'
 import CommentForm from '@/components/CommentForm.vue'
 import CommentMeta from '@/components/CommentMeta.vue'
+import CommentAttachment from '@/components/CommentAttachment.vue'
 import CommentNode from '@/components/CommentNode.vue'
 import { renderCommentHtml } from '@/utils/sanitize'
 import type { PendingReplies } from '@/composables/useRealtime'
@@ -34,6 +35,7 @@ function onCreated(comment: CommentDto) {
       :created-at="comment.createdAt"
     />
     <div class="comment-text" v-html="renderCommentHtml(comment.text)" />
+    <CommentAttachment v-if="comment.attachment" :attachment="comment.attachment" />
 
     <div v-if="pending" class="pending-replies">
       <button v-if="pending.extra === 0" type="button" class="btn" @click="emit('loadReplies')">+{{ pending.ids.length }} ответов. Показать</button>

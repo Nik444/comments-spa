@@ -25,6 +25,7 @@ export function createComment(comment: NewComment) {
   if (comment.parentId !== null) form.append('ParentId', String(comment.parentId))
   if (comment.captchaId) form.append('CaptchaId', comment.captchaId)
   if (comment.captchaAnswer.trim()) form.append('CaptchaAnswer', comment.captchaAnswer.trim())
+  if (comment.file) form.append('File', comment.file)
 
   return postForm<CommentDto>('/api/comments', form)
 }

@@ -3,7 +3,7 @@ import type { CommentDto } from '@/api/types'
 import { buildReplyTree } from './tree'
 
 function reply(id: number, parentId: number, rootId = 1): CommentDto {
-  return { id, parentId, rootId, userName: 'u', email: 'u@example.com', homePage: null, text: 't', createdAt: '2026-10-30T10:00:00Z' }
+  return { id, parentId, rootId, userName: 'u', email: 'u@example.com', homePage: null, text: 't', createdAt: '2026-10-30T10:00:00Z', attachment: null }
 }
 
 describe('buildReplyTree', () => {

@@ -97,3 +97,16 @@ textarea { resize: vertical; }
 .live.on { background: #2e9e5b; }
 .new-banner { display: block; width: 100%; margin-bottom: .75rem; }
 .pending-replies { margin: .5rem 0; }
+
+.file-row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.file-thumb { max-width: 160px; max-height: 120px; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+
+.attachment { margin: .5rem 0; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.thumb-btn { border: 0; padding: 0; background: none; cursor: zoom-in; }
+.thumb { display: block; max-width: 320px; max-height: 240px; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+
+.lightbox { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(0, 0, 0, .8); }
+.lightbox-close { position: absolute; top: 1rem; right: 1rem; }
+.lightbox-image { width: min(90vw, 640px); height: auto; max-height: 85vh; object-fit: contain; border-radius: 6px; background: #fff; }
+.lightbox-text { max-width: min(90vw, 50rem); max-height: 85vh; overflow: auto; padding: 1rem; border-radius: 8px; background: var(--surface); }
+.lightbox-text pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: .9rem/1.5 ui-monospace, Consolas, monospace; }
