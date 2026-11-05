@@ -110,3 +110,11 @@ textarea { resize: vertical; }
 .lightbox-image { width: min(90vw, 640px); height: auto; max-height: 85vh; object-fit: contain; border-radius: 6px; background: #fff; }
 .lightbox-text { max-width: min(90vw, 50rem); max-height: 85vh; overflow: auto; padding: 1rem; border-radius: 8px; background: var(--surface); }
 .lightbox-text pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: .9rem/1.5 ui-monospace, Consolas, monospace; }
+/* Появление и закрытие просмотра: затемнение плавно проявляется, содержимое увеличивается из 85% размера. */
+.lightbox-enter-active, .lightbox-leave-active { transition: opacity .2s ease; }
+.lightbox-enter-active > :not(.lightbox-close), .lightbox-leave-active > :not(.lightbox-close) { transition: transform .25s cubic-bezier(.2, .8, .2, 1); }
+.lightbox-enter-from, .lightbox-leave-to { opacity: 0; }
+.lightbox-enter-from > :not(.lightbox-close), .lightbox-leave-to > :not(.lightbox-close) { transform: scale(.85); }
+@media (prefers-reduced-motion: reduce) {
+  .lightbox-enter-active, .lightbox-leave-active, .lightbox-enter-active > *, .lightbox-leave-active > * { transition: none; }
+}
