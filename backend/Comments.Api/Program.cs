@@ -1,0 +1,79 @@
+using Comments.Api.Application.Abstractions;
+using Comments.Api.Application.Options;
+using Comments.Api.Application.Services;
+using Comments.Api.GraphQl;
+using Comments.Api.Infrastructure.Caching;
+using Comments.Api.Infrastructure.Captcha;
+using Comments.Api.Infrastructure.Http;
+using Comments.Api.Infrastructure.Messaging;
+using Comments.Api.Infrastructure.Persistence;
+using Comments.Api.Infrastructure.Storage;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+builder.Services.AddOpenApi();
+
+var connectionString = builder.Configuration.GetConnectionString("CommentsDb")
+    ?? throw new InvalidOperationException("Не задана строка подключения ConnectionStrings:CommentsDb.");
+
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure()));
+
+builder.Services.AddOptions<CommentsOptions>()
+    .BindConfiguration(CommentsOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services.AddOptions<CacheOptions>()
+    .BindConfiguration(CacheOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services.AddOptions<CaptchaOptions>()
+    .BindConfiguration(CaptchaOptions.SectionName)
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services.AddCommentsCaching(builder.Configuration);
+builder.Services.AddCaptcha();
+builder.Services.AddMessaging(builder.Configuration);
+builder.Services.AddFileStorage();
+
+builder.Services.AddGraphQLServer()
+    .AddQueryType<CommentQueries>();
+
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<ICommentRepository, CommentRepository>();
+builder.Services.AddScoped<CommentService>();
+
+builder.Services.AddExceptionHandler<CommentExceptionHandler>();
+builder.Services.AddProblemDetails();
+
+var app = builder.Build();
+
+await app.MigrateDatabaseIfRequestedAsync();
+
+if (!app.Services.GetRequiredService<IOptions<CaptchaOptions>>().Value.Enabled)
+    app.Logger.LogWarning("Капча выключена (Captcha:Enabled = false). Так можно работать только при отладке и нагрузочных тестах.");
+
+app.UseExceptionHandler();
+
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))
+{
+    app.MapOpenApi();
+    app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "Comments API"));
+}
+
+if (app.Configuration.GetValue("HttpsRedirection:Enabled", !app.Environment.IsDevelopment()))
+    app.UseHttpsRedirection();
+
+app.UseAuthorization();
+
+app.MapControllers();
+app.MapGraphQL();
+app.MapGet("/health", () => Results.Ok());
+
+app.Run();

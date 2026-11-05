@@ -1,0 +1,97 @@
+@host = http://localhost:5160
+
+### Новый корневой комментарий (форма; файл можно не прикладывать)
+POST {{host}}/api/comments
+Content-Type: multipart/form-data; boundary=B
+
+--B
+Content-Disposition: form-data; name="userName"
+
+Anna
+--B
+Content-Disposition: form-data; name="email"
+
+anna@example.com
+--B
+Content-Disposition: form-data; name="homePage"
+
+https://example.com
+--B
+Content-Disposition: form-data; name="text"
+
+Первый комментарий
+--B--
+
+### Ответ на комментарий с Id = 1
+POST {{host}}/api/comments
+Content-Type: multipart/form-data; boundary=B
+
+--B
+Content-Disposition: form-data; name="userName"
+
+Boris
+--B
+Content-Disposition: form-data; name="email"
+
+boris@example.com
+--B
+Content-Disposition: form-data; name="text"
+
+Ответ на первый
+--B
+Content-Disposition: form-data; name="parentId"
+
+1
+--B--
+
+### Ошибка: родителя не существует (ожидается 400)
+POST {{host}}/api/comments
+Content-Type: multipart/form-data; boundary=B
+
+--B
+Content-Disposition: form-data; name="userName"
+
+Boris
+--B
+Content-Disposition: form-data; name="email"
+
+boris@example.com
+--B
+Content-Disposition: form-data; name="text"
+
+Ответ в никуда
+--B
+Content-Disposition: form-data; name="parentId"
+
+999999
+--B--
+
+### Ошибка: неверные поля (ожидается 400 со списком ошибок)
+POST {{host}}/api/comments
+Content-Type: multipart/form-data; boundary=B
+
+--B
+Content-Disposition: form-data; name="userName"
+
+ 
+--B
+Content-Disposition: form-data; name="email"
+
+not-an-email
+--B
+Content-Disposition: form-data; name="text"
+
+ 
+--B--
+
+### Страница корней: новые сверху (по умолчанию)
+GET {{host}}/api/comments
+
+### Страница 1, сортировка по имени по возрастанию
+GET {{host}}/api/comments?page=1&sortBy=userName&sortDir=asc
+
+### Комментарии по Id
+GET {{host}}/api/comments/by-ids?ids=1&ids=2
+
+### Один комментарий
+GET {{host}}/api/comments/1
