@@ -4,12 +4,15 @@ using SkiaSharp;
 namespace Comments.Api.Infrastructure.Captcha;
 
 // Рисует код с наклоном и смещением каждой буквы, поверх точки и линии, чтобы его было сложно прочитать программой.
-// Шрифт берётся из системы. В Docker-образе должен быть установлен шрифт (например, fonts-dejavu-core).
+// Шрифт лежит рядом с приложением (Fonts/DejaVuSans-Bold.ttf): SkiaSharp без зависимостей не видит системные шрифты,
+// а так картинка одинаковая и на Windows, и в Docker.
 public sealed class SkiaCaptchaImageRenderer : ICaptchaImageRenderer
 {
     private const int Width = 160;
     private const int Height = 56;
     private const float FontSize = 34;
+
+    private static readonly Lazy<SKTypeface> Typeface = new(LoadTypeface);
 
     public byte[] Render(string code)
     {
@@ -30,8 +33,7 @@ public sealed class SkiaCaptchaImageRenderer : ICaptchaImageRenderer
 
     private static void DrawCode(SKCanvas canvas, string code)
     {
-        using var typeface = SKTypeface.FromFamilyName("DejaVu Sans", SKFontStyle.Bold) ?? SKTypeface.Default;
-        using var font = new SKFont(typeface, FontSize);
+        using var font = new SKFont(Typeface.Value, FontSize);
         using var paint = new SKPaint { IsAntialias = true };
 
         var step = (float)Width / (code.Length + 1);
@@ -48,6 +50,16 @@ public sealed class SkiaCaptchaImageRenderer : ICaptchaImageRenderer
             canvas.DrawText(code[i].ToString(), x, y, font, paint);
             canvas.Restore();
         }
+    }
+
+    private static SKTypeface LoadTypeface()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "Fonts", "DejaVuSans-Bold.ttf");
+
+        if (File.Exists(path))
+            return SKTypeface.FromFile(path);
+
+        return SKTypeface.FromFamilyName("DejaVu Sans", SKFontStyle.Bold) ?? SKTypeface.Default;
     }
 
     private static void DrawDots(SKCanvas canvas)

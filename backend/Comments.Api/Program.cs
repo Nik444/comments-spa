@@ -1,11 +1,13 @@
 using Comments.Api.Application.Abstractions;
 using Comments.Api.Application.Options;
 using Comments.Api.Application.Services;
+using Comments.Api.GraphQl;
 using Comments.Api.Infrastructure.Caching;
 using Comments.Api.Infrastructure.Captcha;
 using Comments.Api.Infrastructure.Http;
 using Comments.Api.Infrastructure.Messaging;
 using Comments.Api.Infrastructure.Persistence;
+using Comments.Api.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -38,6 +40,10 @@ builder.Services.AddOptions<CaptchaOptions>()
 builder.Services.AddCommentsCaching(builder.Configuration);
 builder.Services.AddCaptcha();
 builder.Services.AddMessaging(builder.Configuration);
+builder.Services.AddFileStorage();
+
+builder.Services.AddGraphQLServer()
+    .AddQueryType<CommentQueries>();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
@@ -48,22 +54,26 @@ builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
+await app.MigrateDatabaseIfRequestedAsync();
+
 if (!app.Services.GetRequiredService<IOptions<CaptchaOptions>>().Value.Enabled)
     app.Logger.LogWarning("Капча выключена (Captcha:Enabled = false). Так можно работать только при отладке и нагрузочных тестах.");
 
 app.UseExceptionHandler();
 
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))
 {
     app.MapOpenApi();
     app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "Comments API"));
 }
 
-if (!app.Environment.IsDevelopment())
+if (app.Configuration.GetValue("HttpsRedirection:Enabled", !app.Environment.IsDevelopment()))
     app.UseHttpsRedirection();
 
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapGraphQL();
+app.MapGet("/health", () => Results.Ok());
 
 app.Run();

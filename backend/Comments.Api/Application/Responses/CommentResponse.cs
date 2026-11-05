@@ -8,4 +8,5 @@ public sealed record CommentResponse(
     string Email,
     string? HomePage,
     string Text,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    AttachmentResponse? Attachment);

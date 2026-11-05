@@ -4,8 +4,10 @@ using Comments.Api.Application.Mapping;
 using Comments.Api.Application.Options;
 using Comments.Api.Application.Requests;
 using Comments.Api.Application.Responses;
+using Comments.Api.Application.Validation;
 using Comments.Api.Domain;
 using Comments.Contracts;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
 namespace Comments.Api.Application.Services;
@@ -16,6 +18,7 @@ public class CommentService(
     IPageCache pageCache,
     ICaptchaService captcha,
     ICommentEventPublisher events,
+    IFileStorage storage,
     IOptions<CommentsOptions> options,
     TimeProvider timeProvider)
 {
@@ -41,6 +44,8 @@ public class CommentService(
             }
         }
 
+        var attachment = await StoreAttachmentAsync(request.File, cancellationToken);
+
         var comment = new CommentEntity
         {
             ParentId = request.ParentId,
@@ -49,11 +54,22 @@ public class CommentService(
             Email = request.Email.Trim(),
             HomePage = string.IsNullOrWhiteSpace(request.HomePage) ? null : request.HomePage.Trim(),
             Text = request.Text,
-            CreatedAt = timeProvider.GetUtcNow().UtcDateTime
+            CreatedAt = timeProvider.GetUtcNow().UtcDateTime,
+            Attachment = attachment
         };
 
         repository.Add(comment);
-        await repository.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await repository.SaveChangesAsync(cancellationToken);
+        }
+        catch when (attachment is not null)
+        {
+            // Комментарий не записался, файл остался бы никому не нужным.
+            await storage.DeleteAsync(attachment.Key, CancellationToken.None);
+            throw;
+        }
 
         // В кэш сразу после коммита: клиенты, получившие сигнал о новом комментарии, найдут его там.
         var response = comment.ToResponse();
@@ -94,6 +110,46 @@ public class CommentService(
     {
         var comments = await commentCache.GetManyAsync([id], LoadByIdsAsync, cancellationToken);
         return comments.Count == 0 ? null : comments[0];
+    }
+
+    private async Task<AttachmentEntity?> StoreAttachmentAsync(IFormFile? file, CancellationToken cancellationToken)
+    {
+        if (file is null)
+            return null;
+
+        await using var stream = file.OpenReadStream();
+        var error = AttachmentValidator.Inspect(file.FileName, stream, out var inspection);
+
+        if (error is not null || inspection is null)
+            throw new ArgumentException(error ?? "Недопустимый файл.", nameof(file));
+
+        var key = AttachmentKeys.Create(inspection.Extension);
+        await storage.SaveAsync(key, inspection.Data, cancellationToken);
+
+        return new AttachmentEntity
+        {
+            Kind = inspection.Kind,
+            Key = key,
+            OriginalName = SafeFileName(file.FileName),
+            SizeBytes = inspection.Data.Length
+        };
+    }
+
+    // Имя нужно только для показа: без путей и управляющих символов, в пределах колонки.
+    private static string SafeFileName(string? name)
+    {
+        var clean = new string((name ?? string.Empty).Where(c => !char.IsControl(c)).ToArray());
+        var slash = clean.LastIndexOfAny(['/', '\\']);
+
+        if (slash >= 0)
+            clean = clean[(slash + 1)..];
+
+        clean = clean.Trim();
+
+        if (clean.Length > CommentLimits.AttachmentNameMax)
+            clean = clean[..CommentLimits.AttachmentNameMax];
+
+        return clean.Length == 0 ? "file" : clean;
     }
 
     private int TotalPages(long totalItems) => (int)((totalItems + options.Value.PageSize - 1) / options.Value.PageSize);

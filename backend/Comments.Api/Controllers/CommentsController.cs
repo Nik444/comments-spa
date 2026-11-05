@@ -1,6 +1,7 @@
 using Comments.Api.Application.Requests;
 using Comments.Api.Application.Responses;
 using Comments.Api.Application.Services;
+using Comments.Api.Domain;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Comments.Api.Controllers;
@@ -28,6 +29,8 @@ public class CommentsController(CommentService service) : ControllerBase
     // Форма (multipart/form-data), чтобы можно было приложить файл.
     [HttpPost]
     [Consumes("multipart/form-data")]
+    [RequestSizeLimit(CommentLimits.RequestMaxBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = CommentLimits.RequestMaxBytes)]
     [ProducesResponseType<CommentResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict)]

@@ -8,4 +8,5 @@ public sealed record RootCommentResponse(
     string? HomePage,
     string Text,
     DateTime CreatedAt,
+    AttachmentResponse? Attachment,
     IReadOnlyList<CommentResponse> Replies);
