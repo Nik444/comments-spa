@@ -1,34 +1,135 @@
+# Порядок старта: db, redis, rabbitmq (ждём healthcheck) -> api (применяет миграции) и realtime -> web (nginx).
+# Всё приложение целиком:        docker compose up -d --build     (сайт на http://localhost:8080, Swagger: /swagger)
+# Только инфраструктура для VS:  docker compose up -d db redis rabbitmq
+# Пароли ниже только для локального запуска и демонстрации. В облаке они задаются переменными окружения.
+
 services:
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
     container_name: comments-db
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: "Express"
-      MSSQL_SA_PASSWORD: "Dev_Passw0rd_2026!"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-Dev_Passw0rd_2026!}"
     ports:
-      - "1433:1433"
+      - "127.0.0.1:1433:1433"
     volumes:
       - mssql-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     container_name: comments-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
   rabbitmq:
     image: rabbitmq:4-management
+    restart: unless-stopped
     container_name: comments-rabbit
     environment:
       RABBITMQ_DEFAULT_USER: comments
-      RABBITMQ_DEFAULT_PASS: comments_dev
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-comments_dev}
     ports:
-      - "5672:5672"     # AMQP, по нему подключается приложение
-      - "15672:15672"   # веб-интерфейс управления
+      - "127.0.0.1:5672:5672"     # AMQP, по нему подключается приложение
+      - "127.0.0.1:15672:15672"   # веб-интерфейс управления
     volumes:
       - rabbit-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 15s
+      retries: 20
+      start_period: 60s
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Comments.Api/Dockerfile
+    container_name: comments-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__CommentsDb: "Server=db,1433;Database=CommentsDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:-Dev_Passw0rd_2026!};TrustServerCertificate=True"
+      ConnectionStrings__Redis: "redis:6379"
+      Cache__Mode: Hybrid
+      RabbitMq__Host: rabbitmq
+      RabbitMq__UserName: comments
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:-comments_dev}
+      Storage__Path: /data/attachments
+      Storage__Provider: ${STORAGE_PROVIDER:-Local}
+      Storage__ConnectionString: ${AZURE_STORAGE_CONNECTION_STRING:-}
+      Storage__ServiceUri: ${AZURE_STORAGE_SERVICE_URI:-}
+      Storage__Container: ${AZURE_STORAGE_CONTAINER:-uploads}
+      Storage__CacheMinutes: ${STORAGE_CACHE_MINUTES:-0}
+      Captcha__Enabled: ${CAPTCHA_ENABLED:-true}
+      Database__MigrateOnStart: "true"
+      HttpsRedirection__Enabled: "false"
+      Swagger__Enabled: "true"
+    volumes:
+      - attachments-data:/data/attachments
+    # Порт Api открывается только после применения миграций, поэтому «здоров» значит «база готова и приложение слушает».
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  realtime:
+    build:
+      context: ./backend
+      dockerfile: Comments.Realtime/Dockerfile
+    container_name: comments-realtime
+    restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      RabbitMq__Host: rabbitmq
+      RabbitMq__UserName: comments
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:-comments_dev}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  web:
+    build:
+      context: ./frontend
+    container_name: comments-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      realtime:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
 
 volumes:
   mssql-data:
   rabbit-data:
+  attachments-data:
