@@ -433,3 +433,6 @@ backend/Comments.Api/data/
 # Файлы окружения с секретами (образец .env.example хранится в репозитории)
 .env.*
 !.env.example
+
+# Сырые результаты нагрузочных прогонов
+loadtest/results/
