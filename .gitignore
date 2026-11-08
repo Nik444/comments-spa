@@ -426,3 +426,10 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# Загруженные вложения при локальной разработке
+backend/Comments.Api/data/
+
+# Файлы окружения с секретами (образец .env.example хранится в репозитории)
+.env.*
+!.env.example
